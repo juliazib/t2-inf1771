@@ -1,0 +1,1 @@
+# INF1771_Wumpus_Prolog_Python
