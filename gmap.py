@@ -4,6 +4,8 @@ import sys, time, random
 from pyswip import Prolog, Functor, Variable, Query
 
 from threading import Thread
+import pathlib
+current_path = str(pathlib.Path().resolve())
 
 auto_play_tempo = 0.5
 auto_play = True # desligar para controlar manualmente
@@ -37,7 +39,7 @@ visitados = []
 certezas = []
 
 prolog = Prolog()
-prolog.consult('d:/backup/mapa.pl')
+prolog.consult((current_path + '\\main.pl').replace('\\','/'))
 
 last_action = ""
 
@@ -406,6 +408,7 @@ update_prolog()
 
 
 pygame.init()
+pygame.display.set_caption('INF1771 Trabalho 2 - Agente Lógico')
 screen = pygame.display.set_mode((width, height+30))
 load()
 
