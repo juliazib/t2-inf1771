@@ -156,9 +156,17 @@ adiciona_observacoes(X, Y, LO) :- \+certeza(X,Y), \+ memory(X,Y,_), assert(memor
 
 %Quando há apenas uma observação e uma unica posição incerta, deduz que a observação está na casa incerta
 %e marca como certeza
-observacao_certeza:- findall((X,Y), (adjacente(X, Y), 
-						((\+visitado(X,Y), \+certeza(X,Y));(certeza(X,Y),memory(X,Y,ZZ),ZZ\=[])),
-						memory(X,Y,Z), Z\=[]), L), ((length(L,1),L=[(XX,YY)], assert(certeza(XX,YY)),!);true).
+%observacao_certeza:- findall((X,Y), (adjacente(X, Y), 
+%						((\+visitado(X,Y), \+certeza(X,Y));(certeza(X,Y),memory(X,Y,ZZ),ZZ\=[])),
+%						memory(X,Y,Z), Z\=[]), L), ((length(L,1),L=[(XX,YY)], assert(certeza(XX,YY)),!);true).
+						
+observacao_certeza:- observacao_certeza('brisa'),
+						observacao_certeza('palmas'),
+						observacao_certeza('passos').
+						
+observacao_certeza(Z):- findall((X,Y), (adjacente(X, Y), 
+						((\+visitado(X,Y), \+certeza(X,Y));(certeza(X,Y),memory(X,Y,[Z]))),
+						memory(X,Y,[Z])), L), ((length(L,1),L=[(XX,YY)], assert(certeza(XX,YY)),!);true).						
 
 %Quando posição não tem observações
 observacao_vazia:- adj_cand_obs(LP), observacao_vazia(LP).
