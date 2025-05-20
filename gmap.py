@@ -3,12 +3,12 @@ import pygame
 import sys, time, random
 from pyswip import Prolog, Functor, Variable, Query
 
-from threading import Thread
 import pathlib
 current_path = str(pathlib.Path().resolve())
 
+elapsed_time = 0
 auto_play_tempo = 0.5
-auto_play = True # desligar para controlar manualmente
+auto_play = False # desligar para controlar manualmente
 show_map = False
 
 scale = 60
@@ -38,8 +38,9 @@ mapa=[['','','','','','','','','','','',''],
 visitados = []
 certezas = []
 
+pl_file = (current_path + '\\main.pl').replace('\\','/')
 prolog = Prolog()
-prolog.consult((current_path + '\\main.pl').replace('\\','/'))
+prolog.consult(pl_file)
 
 last_action = ""
 
@@ -52,22 +53,6 @@ def decisao():
         acao = acoes[0]['X']
 
     return acao
-
-class Th(Thread):
-
-    
-    def __init__ (self, mapa, alg):
-        Thread.__init__(self)
-
-    def run(self):
-
-        time.sleep(1)
-
-        while player_pos[2] != 'morto':
-            
-            exec_prolog(decisao())
-            update_prolog()
-            time.sleep(auto_play_tempo)
 
 
 def exec_prolog(a):
@@ -89,7 +74,7 @@ def update_prolog():
     while visitado_query.nextSolution():
         visitados.append((x.value,y.value))
     visitado_query.closeQuery()
-    
+
     x = Variable()
     y = Variable()
     certeza = Functor("certeza", 2)
@@ -268,39 +253,50 @@ def load():
     bw_img_health = pygame.transform.scale(bw_img_health, bw_img_health_size)  
 
 def update(dt, screen):
-    pass
+    
+    global elapsed_time
+    
+    elapsed_time += dt
+    
+    if (elapsed_time / 1000) > auto_play_tempo:
+        
+        if auto_play and player_pos[2] != 'morto':
+            exec_prolog(decisao())
+            update_prolog()
+       
+        elapsed_time = 0
+        
+    
 
-def key_pressed():
+def key_pressed(event):
     
     global show_map
     #leitura do teclado
-    for event in pygame.event.get():
-        if event.type == pygame.KEYDOWN:
-    
-            if event.key==pygame.K_LEFT: #tecla esquerda
+    if event.type == pygame.KEYDOWN:
+        
+        if not auto_play and player_pos[2] != 'morto':
+            if event.key == pygame.K_LEFT: #tecla esquerda
                 exec_prolog("virar_esquerda")
                 update_prolog()
 
-            elif event.key==pygame.K_RIGHT: #tecla direita
+            elif event.key == pygame.K_RIGHT: #tecla direita
                 exec_prolog("virar_direita")
                 update_prolog()
 
-            elif event.key==pygame.K_UP: #tecla  cima
+            elif event.key == pygame.K_UP: #tecla  cima
                 exec_prolog("andar")
                 update_prolog()
-    
-            if event.key==pygame.K_m:
-                show_map = not show_map
-                update_prolog()
 
-            if event.key==pygame.K_SPACE:
+            if event.key == pygame.K_SPACE:
                 exec_prolog("pegar")
                 update_prolog()
-            
+    
+        if event.key == pygame.K_m:
+            show_map = not show_map
+            update_prolog()
 
 
 def draw_screen(screen):
-
     
     screen.fill((0,0,0))
  
@@ -350,7 +346,7 @@ def draw_screen(screen):
                 else:
                     screen.blit(bw_img_gold, (x * bw_img_gold.get_width(), y * bw_img_gold.get_height()))                
             
-            if x ==  player_pos[0]-1  and  y == 12 -player_pos[1] :
+            if x == player_pos[0] - 1  and  y == 12 - player_pos[1]:
                 if player_pos[2] == 'norte':
                     screen.blit(img_player_up, (x * img_player_up.get_width(), y * img_player_up.get_height()))                                               
                 elif player_pos[2] == 'sul':
@@ -376,24 +372,23 @@ def draw_screen(screen):
 def main_loop(screen):  
     global clock
     running = True
+    
     while running:
         for e in pygame.event.get(): 
             if e.type == pygame.QUIT:
                 running = False
                 break
-
-        # Define FPS máximo
-        clock.tick(60)        
- 
+            
+            key_pressed(e)
+            
         # Calcula tempo transcorrido desde
         # a última atualização 
-        dt = clock.get_time()
-
-        key_pressed()
+        dt = clock.tick()
+        
         
         # Atualiza posição dos objetos da tela
         update(dt, screen)
-
+        
         # Desenha objetos na tela 
         draw_screen(screen)
 
@@ -401,20 +396,12 @@ def main_loop(screen):
         pygame.display.update() 
 
 
-
-
 update_prolog()
-
-
 
 pygame.init()
 pygame.display.set_caption('INF1771 Trabalho 2 - Agente Lógico')
 screen = pygame.display.set_mode((width, height+30))
 load()
-
-if auto_play:
-    a = Th("","")
-    a.start() 
 
 main_loop(screen)
 pygame.quit()
