@@ -240,7 +240,21 @@ show_mem(_,0) :- energia(E), pontuacao(P), write('E: '), write(E), write('   P: 
 
 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+
+executa_acao(pegar) :- 
+	posicao(X, Y, _),
+	memory(X, Y, L),
+	observacao_loc(brilho, L),
+	!.
+
+executa_acao(acao) :- 
+	posicao(X, Y, _),
+	memory(X, Y, L),
+	observacao_adj(brisa, L),
+	L1 = ['virar_esquerda', 'virar_direita'],
+	random_member(acao, L1),
+	!.
 
 
 executa_acao(X) :- L=['virar_esquerda','virar_direita','andar','pegar'],random_between(1,4,I), nth1(I, L, X),!.
