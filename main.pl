@@ -262,12 +262,11 @@ max_perigo([_Outros|Resto], Max) :-
     max_perigo(Resto, Max).
 
 % Define se uma posição é segura
-% Considera segura se não há memória (não visitada) ou perigo < 2
 posicao_segura(X, Y) :-
     (   memory(X, Y, Obs) ->
         max_perigo(Obs, Danger),
         Danger < 2
-    ;   true  % posição sem memória é segura (pode ser ajustado conforme necessidade)
+    ;   true  % posição sem memória é considerada segura
     ).
 
 % Define se uma posição é conhecida e seu nível de perigo
@@ -291,37 +290,38 @@ movimentos_menos_perigosos(L) :-
          posicao_menos_perigosa(X, Y, Danger)),
     L).
 
-% Melhor movimento: primeiro tenta um movimento seguro, escolhe o primeiro (pode ser randomizado)
+% Melhor movimento
 melhor_movimento((X, Y)) :-
     movimentos_seguros(L),
     L \= [],
-    % Aqui você pode ordenar L por algum critério se quiser
     L = [(X, Y)|_], !.
 
-% Se não há seguro, escolhe o menos perigoso, ordenado pelo perigo crescente
 melhor_movimento((X, Y)) :-
     movimentos_menos_perigosos(L),
     L \= [],
     predsort(compara_perigo, L, Sorted),
     Sorted = [(X, Y, _)|_], !.
 
-% Direção desejada para mover
+% Direção desejada
 direcao_desejada((X, Y), (X2, Y), leste)  :- X2 is X + 1.
 direcao_desejada((X, Y), (X2, Y), oeste)  :- X2 is X - 1.
 direcao_desejada((X, Y), (X, Y2), norte)  :- Y2 is Y + 1.
 direcao_desejada((X, Y), (X, Y2), sul)    :- Y2 is Y - 1.
 
-% Verifica se já está virado para a direção desejada
-direcao_entre((X, Y), (NX, NY), Dir) :-
-    direcao_desejada((X, Y), (NX, NY), Dir).
+% Códigos numéricos das direções
+direcao_num(norte, 0).
+direcao_num(leste, 1).
+direcao_num(sul, 2).
+direcao_num(oeste, 3).
 
-% Decide se deve virar esquerda ou direita para alcançar direção desejada
-direcao_a_virar(Atual, Desejada, virar_direita) :-
-    proxima_direcao(Atual, virar_direita, Desejada).
-direcao_a_virar(Atual, Desejada, virar_esquerda) :-
-    proxima_direcao(Atual, virar_esquerda, Desejada).
+% Distância de rotação entre duas direções
+distancia_direcao(D1, D2, Dist) :-
+    direcao_num(D1, N1),
+    direcao_num(D2, N2),
+    Diff is abs(N1 - N2),
+    Dist is min(Diff, 4 - Diff).
 
-% Define rotação à direita e à esquerda
+% Próxima direção ao girar
 proxima_direcao(norte, virar_direita, leste).
 proxima_direcao(leste, virar_direita, sul).
 proxima_direcao(sul, virar_direita, oeste).
@@ -337,24 +337,38 @@ executa_acao(pegar) :-
     memory(X, Y, L),
     member(brilho, L), !.
 
+executa_acao(pegar) :- 
+    posicao(X, Y, _),
+    memory(X, Y, L),
+    member(reflexo, L),
+    energia(E),
+    E < 50, !.
+
+% Caminhar se já estiver virado corretamente
 executa_acao(andar) :-
     posicao(X, Y, Dir),
     melhor_movimento((NX, NY)),
-    direcao_entre((X, Y), (NX, NY), Dir), !.
+    direcao_desejada((X, Y), (NX, NY), Dir), !.
 
+% Continuar virando para alinhar com direção desejada (melhor lógica)
 executa_acao(virar_direita) :-
     posicao(X, Y, Dir),
     melhor_movimento((NX, NY)),
     direcao_desejada((X, Y), (NX, NY), Desejada),
-    direcao_a_virar(Dir, Desejada, virar_direita), !.
+    Dir \= Desejada,
+    proxima_direcao(Dir, virar_direita, NovoDir),
+    distancia_direcao(NovoDir, Desejada, DistR),
+    proxima_direcao(Dir, virar_esquerda, OutroDir),
+    distancia_direcao(OutroDir, Desejada, DistL),
+    DistR =< DistL, !.
 
 executa_acao(virar_esquerda) :-
     posicao(X, Y, Dir),
     melhor_movimento((NX, NY)),
     direcao_desejada((X, Y), (NX, NY), Desejada),
-    direcao_a_virar(Dir, Desejada, virar_esquerda), !.
+    Dir \= Desejada, !.
 
-% Caso não haja uma ação definida, executa uma aleatória
+% Último recurso: ação aleatória
 executa_acao(Acao) :-
     Acoes = [virar_esquerda, virar_direita, andar, pegar],
     random_member(Acao, Acoes), !.
