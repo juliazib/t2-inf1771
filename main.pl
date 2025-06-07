@@ -242,22 +242,123 @@ show_mem(_,0) :- energia(E), pontuacao(P), write('E: '), write(E), write('   P: 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
 
+% Níveis de perigo por tipo de observação
+perigo(brisa, 3).
+perigo(palmas, 2).
+perigo(passos, 1).
+
+% Compara perigos para predsort
+compara_perigo(<, (_, _, P1), (_, _, P2)) :- P1 < P2.
+compara_perigo(=, (_, _, P1), (_, _, P2)) :- P1 =:= P2.
+compara_perigo(>, (_, _, P1), (_, _, P2)) :- P1 > P2.
+
+% Determina o maior perigo entre observações
+max_perigo([], 0).
+max_perigo([Obs|Resto], Max) :-
+    perigo(Obs, Nivel), !,
+    max_perigo(Resto, MaxResto),
+    Max is max(Nivel, MaxResto).
+max_perigo([_Outros|Resto], Max) :-
+    max_perigo(Resto, Max).
+
+% Define se uma posição é segura
+% Considera segura se não há memória (não visitada) ou perigo < 2
+posicao_segura(X, Y) :-
+    (   memory(X, Y, Obs) ->
+        max_perigo(Obs, Danger),
+        Danger < 2
+    ;   true  % posição sem memória é segura (pode ser ajustado conforme necessidade)
+    ).
+
+% Define se uma posição é conhecida e seu nível de perigo
+posicao_menos_perigosa(X, Y, Danger) :-
+    memory(X, Y, Obs),
+    max_perigo(Obs, Danger).
+
+% Lista todas posições adjacentes seguras
+movimentos_seguros(L) :-
+    findall((X, Y),
+        (adjacente(X, Y),
+         \+ visitado(X, Y),
+         posicao_segura(X, Y)),
+    L).
+
+% Lista todas posições adjacentes possíveis com seus perigos
+movimentos_menos_perigosos(L) :-
+    findall((X, Y, Danger),
+        (adjacente(X, Y),
+         \+ visitado(X, Y),
+         posicao_menos_perigosa(X, Y, Danger)),
+    L).
+
+% Melhor movimento: primeiro tenta um movimento seguro, escolhe o primeiro (pode ser randomizado)
+melhor_movimento((X, Y)) :-
+    movimentos_seguros(L),
+    L \= [],
+    % Aqui você pode ordenar L por algum critério se quiser
+    L = [(X, Y)|_], !.
+
+% Se não há seguro, escolhe o menos perigoso, ordenado pelo perigo crescente
+melhor_movimento((X, Y)) :-
+    movimentos_menos_perigosos(L),
+    L \= [],
+    predsort(compara_perigo, L, Sorted),
+    Sorted = [(X, Y, _)|_], !.
+
+% Direção desejada para mover
+direcao_desejada((X, Y), (X2, Y), leste)  :- X2 is X + 1.
+direcao_desejada((X, Y), (X2, Y), oeste)  :- X2 is X - 1.
+direcao_desejada((X, Y), (X, Y2), norte)  :- Y2 is Y + 1.
+direcao_desejada((X, Y), (X, Y2), sul)    :- Y2 is Y - 1.
+
+% Verifica se já está virado para a direção desejada
+direcao_entre((X, Y), (NX, NY), Dir) :-
+    direcao_desejada((X, Y), (NX, NY), Dir).
+
+% Decide se deve virar esquerda ou direita para alcançar direção desejada
+direcao_a_virar(Atual, Desejada, virar_direita) :-
+    proxima_direcao(Atual, virar_direita, Desejada).
+direcao_a_virar(Atual, Desejada, virar_esquerda) :-
+    proxima_direcao(Atual, virar_esquerda, Desejada).
+
+% Define rotação à direita e à esquerda
+proxima_direcao(norte, virar_direita, leste).
+proxima_direcao(leste, virar_direita, sul).
+proxima_direcao(sul, virar_direita, oeste).
+proxima_direcao(oeste, virar_direita, norte).
+proxima_direcao(norte, virar_esquerda, oeste).
+proxima_direcao(oeste, virar_esquerda, sul).
+proxima_direcao(sul, virar_esquerda, leste).
+proxima_direcao(leste, virar_esquerda, norte).
+
+% Ações
 executa_acao(pegar) :- 
-	posicao(X, Y, _),
-	memory(X, Y, L),
-	observacao_loc(brilho, L),
-	!.
+    posicao(X, Y, _),
+    memory(X, Y, L),
+    member(brilho, L), !.
 
-executa_acao(acao) :- 
-	posicao(X, Y, _),
-	memory(X, Y, L),
-	observacao_adj(brisa, L),
-	L1 = ['virar_esquerda', 'virar_direita'],
-	random_member(acao, L1),
-	!.
+executa_acao(andar) :-
+    posicao(X, Y, Dir),
+    melhor_movimento((NX, NY)),
+    direcao_entre((X, Y), (NX, NY), Dir), !.
 
+executa_acao(virar_direita) :-
+    posicao(X, Y, Dir),
+    melhor_movimento((NX, NY)),
+    direcao_desejada((X, Y), (NX, NY), Desejada),
+    direcao_a_virar(Dir, Desejada, virar_direita), !.
 
-executa_acao(X) :- L=['virar_esquerda','virar_direita','andar','pegar'],random_between(1,4,I), nth1(I, L, X),!.
+executa_acao(virar_esquerda) :-
+    posicao(X, Y, Dir),
+    melhor_movimento((NX, NY)),
+    direcao_desejada((X, Y), (NX, NY), Desejada),
+    direcao_a_virar(Dir, Desejada, virar_esquerda), !.
+
+% Caso não haja uma ação definida, executa uma aleatória
+executa_acao(Acao) :-
+    Acoes = [virar_esquerda, virar_direita, andar, pegar],
+    random_member(Acao, Acoes), !.
+
 
 
 
