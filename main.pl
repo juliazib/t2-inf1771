@@ -5,11 +5,12 @@
 :-dynamic certeza/2.
 :-dynamic energia/1.
 :-dynamic pontuacao/1.
+:-dynamic certeza_inferida/2.
 :-dynamic ourosColetados/1.
 :-dynamic safe_positions/1.
 :-dynamic energy_positions/1.
 
-:-consult('mapa.pl').
+:-consult('mapa_dificil.pl').
 
 delete([], _, []).
 delete([Elem|Tail], Del, Result) :-
@@ -197,25 +198,27 @@ andar :- posicao(X,Y,P), P = norte, map_size(_,MAX_Y), Y < MAX_Y, YY is Y + 1,
          retract(posicao(X,Y,_)), assert(posicao(X, YY, P)), 
 		 %((retract(certeza(X,YY)), assert(certeza(X,YY))); assert(certeza(X,YY))),
 		 set_real(X,YY),
-		 ((retract(visitado(X,Y)), assert(visitado(X,Y))); assert(visitado(X,Y))),atualiza_pontuacao(-1),!.
+		 ((retract(visitado(X,Y)), assert(visitado(X,Y))); assert(visitado(X,Y))),atualiza_pontuacao(-1),
+         deduz_buracos,!.
 		 
 andar :- posicao(X,Y,P), P = sul,  Y > 1, YY is Y - 1, 
          retract(posicao(X,Y,_)), assert(posicao(X, YY, P)), 
 		 %((retract(certeza(X,YY)), assert(certeza(X,YY))); assert(certeza(X,YY))),
 		 set_real(X,YY),
-		 ((retract(visitado(X,Y)), assert(visitado(X,Y))); assert(visitado(X,Y))),atualiza_pontuacao(-1),!.
+		 ((retract(visitado(X,Y)), assert(visitado(X,Y))); assert(visitado(X,Y))),atualiza_pontuacao(-1),
+          deduz_buracos,!.
 
 andar :- posicao(X,Y,P), P = leste, map_size(MAX_X,_), X < MAX_X, XX is X + 1, 
          retract(posicao(X,Y,_)), assert(posicao(XX, Y, P)), 
 		 %((retract(certeza(XX,Y)), assert(certeza(XX,Y))); assert(certeza(XX,Y))),
 		 set_real(XX,Y),
-		 ((retract(visitado(X,Y)), assert(visitado(X,Y))); assert(visitado(X,Y))),atualiza_pontuacao(-1),!.
+		 ((retract(visitado(X,Y)), assert(visitado(X,Y))); assert(visitado(X,Y))),atualiza_pontuacao(-1),deduz_buracos,!.
 
 andar :- posicao(X,Y,P), P = oeste,  X > 1, XX is X - 1, 
          retract(posicao(X,Y,_)), assert(posicao(XX, Y, P)), 
 		 %((retract(certeza(XX,Y)), assert(certeza(XX,Y))); assert(certeza(XX,Y))),
 		 set_real(XX,Y),
-		 ((retract(visitado(X,Y)), assert(visitado(X,Y))); assert(visitado(X,Y))),atualiza_pontuacao(-1),!.
+		 ((retract(visitado(X,Y)), assert(visitado(X,Y))); assert(visitado(X,Y))),atualiza_pontuacao(-1),deduz_buracos,!.
 		 
 %pegar	
 pegar :- posicao(X,Y,_), tile(X,Y,'O'), retract(tile(X,Y,'O')), assert(tile(X,Y,'')), atualiza_pontuacao(-5), atualiza_pontuacao(500),set_real(X,Y),!. 
@@ -367,11 +370,44 @@ mostrar_ouros :-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
 
-tem_inimigo(X, Y) :-
-    certeza((X, Y), inimigo).
+tem_buraco(X, Y) :-
+    tile(X, Y, 'P'),
+    certeza(X, Y).
+
+encontra_posicoes_com_buraco(L) :-
+    setof((X, Y),
+        (adjacente(X, Y), tem_buraco(X, Y)),
+        L).
+encontra_posicoes_com_buraco([]).
+
+sente_brisa(X,Y) :-
+    findall((XA, YA),
+        (adjacente(XA, YA), memory(XA, YA, L), member(brisa, L)),
+        L),
+    L \= [].
+
+deduz_buracos :-
+    posicao(X, Y, _),
+    memory(X, Y, L),
+    sente_brisa(X, Y),
+    encontra_posicoes_com_buraco(ComBuraco),
+    length(ComBuraco, 1),
+    findall((AX, AY),
+        (adjacente(AX, AY), \+ member((AX, AY), ComBuraco)),
+        Seguras),
+    marcar_seguras(Seguras).
+
+marcar_seguras([]).
+marcar_seguras([(X, Y)|T]) :-
+    \+ certeza_inferida((X, Y), segura),
+    assertz(certeza_inferida((X,Y), segura)),
+    marcar_seguras(T).
 
 posicao_segura(X, Y) :-
-    \+ tem_inimigo(X, Y),
+    certeza_inferida((X,Y), segura).
+
+posicao_segura(X, Y) :-
+    \+ tem_buraco(X, Y),
     (memory(X, Y, Obs) ->
         \+ member(brisa, Obs),
         \+ member(passos, Obs),
