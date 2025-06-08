@@ -6,6 +6,7 @@
 :-dynamic energia/1.
 :-dynamic pontuacao/1.
 :-dynamic ourosColetados/1.
+:-dynamic safe_positions/1.
 
 :-consult('mapa.pl').
 
@@ -17,7 +18,10 @@ delete([Elem|Tail], Del, Result) :-
         delete(Tail, Del, Rest)
     ).
 	
-
+imprime_lista([]).
+imprime_lista([H|T]) :-
+    writeln(H),
+    imprime_lista(T).
 
 reset_game :- retractall(memory(_,_,_)), 
 			retractall(visitado(_,_)), 
@@ -28,11 +32,76 @@ reset_game :- retractall(memory(_,_,_)),
 			assert(energia(100)),
 			assert(pontuacao(0)),
 			assert(posicao(1,1, norte)),
-            assert(ourosColetados(0)).
+            assert(ourosColetados(0)),
+            retractall(safe_positions(_)),
+            assert(safe_positions([(1,1)])).
+
 
 
 
 :-reset_game.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Utils
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+vizinho((X,Y), (X1,Y)) :-
+    map_size(MAX_X, _),
+    X < MAX_X,
+    X1 is X + 1.
+
+vizinho((X,Y), (X1,Y)) :-
+    X > 1,
+    X1 is X - 1.
+
+vizinho((X,Y), (X,Y1)) :-
+    map_size(_, MAX_Y),
+    Y < MAX_Y,
+    Y1 is Y + 1.
+
+vizinho((X,Y), (X,Y1)) :-
+    Y > 1,
+    Y1 is Y - 1.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Caminho inicial
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+%adiciona uma posicao como segura
+add_safe_position(X, Y) :-
+    safe_positions(L),
+    \+ member((X,Y), L),                      % se ainda não está na lista
+    retract(safe_positions(L)),
+    assert(safe_positions([(X,Y)|L])).       % adiciona na cabeça da lista
+add_safe_position(_, _).                     % se já está, não faz nada
+
+%verifica se uma posicao é segura
+is_safe(X,Y) :- safe_positions(L), member((X,Y), L).
+
+% verifica se a posição é segura
+is_safe_pos((X,Y)) :- safe_positions(L), member((X,Y), L).
+
+% caminho_ate_inicio(-Caminho)
+caminho_ate_inicio(Caminho) :-
+    posicao(X, Y, _),
+    bfs([ ((X,Y), [ (X,Y) ]) ], (1,1), CaminhoRev),
+    reverse(CaminhoRev, Caminho).
+
+% BFS usando fila (lista) com elementos (Pos, CaminhoAcumulado)
+bfs([ (Pos, Caminho) | _], Pos, Caminho).
+bfs([ (PosAtual, CaminhoAc) | Resto], Objetivo, Caminho) :-
+    findall( (Prox, [Prox|CaminhoAc]),
+             ( vizinho(PosAtual, Prox),
+               is_safe_pos(Prox),
+               \+ member(Prox, CaminhoAc)
+             ),
+             Novos),
+    append(Resto, Novos, FilaAtualizada),
+    bfs(FilaAtualizada, Objetivo, Caminho).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Controle de Status
@@ -186,7 +255,8 @@ set_real2(X,Y):- tile(X,Y,'O'), ((retract(memory(X,Y,_)),assert(memory(X,Y,[bril
 set_real2(X,Y):- tile(X,Y,'T'), ((retract(memory(X,Y,_)),assert(memory(X,Y,[palmas])),!);assert(memory(X,Y,[palmas]))),!.
 set_real2(X,Y):- ((tile(X,Y,'D'),!); tile(X,Y,'d')), ((retract(memory(X,Y,_)),assert(memory(X,Y,[passos])),!);assert(memory(X,Y,[passos]))),!.
 set_real2(X,Y):- tile(X,Y,'U'), ((retract(memory(X,Y,_)),assert(memory(X,Y,[reflexo])),!);assert(memory(X,Y,[reflexo]))),!.
-set_real2(X,Y):- tile(X,Y,''), ((retract(memory(X,Y,_)),assert(memory(X,Y,[])),!);assert(memory(X,Y,[]))),!.
+set_real2(X,Y):- tile(X,Y,''), add_safe_position(X,Y), ((retract(memory(X,Y,_)),assert(memory(X,Y,[])),!);assert(memory(X,Y,[]))),!.
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -283,6 +353,7 @@ movimentos_seguros_visitados(L) :-
          posicao_segura(X, Y)),
     L).
 
+
 melhor_movimento(Pos) :-
     movimentos_seguros_nao_visitados(L1),
     L1 \= [], !,
@@ -328,7 +399,21 @@ distancia_direcao(D1, D2, Dist) :-
     Diff is abs(N1 - N2),
     Dist is min(Diff, 4 - Diff).
 
+todos_ouros_coletados :-
+    % lógica para verificar se todos os ouros foram coletados
+    writeln("Todos os ouros foram coletados.").
+
 % Ações
+executa_acao(todos_ouros_coletados) :-
+    ourosColetados(Qtd),
+    Qtd =:= 3,
+    safe_positions(IL),
+    imprime_lista(IL),
+    writeln("Primeira lista"),
+    caminho_ate_inicio(C),
+    imprime_lista(C),
+    writeln("CAMINHO PRA VOLTA"),!.
+
 executa_acao(pegar) :- 
     posicao(X, Y, _),
     memory(X, Y, L),
