@@ -67,8 +67,7 @@ vizinho((X,Y), (X,Y1)) :-
     Y > 1,
     Y1 is Y - 1.
 
-
-% Heurística: distância Manhattan
+% Heurística: Manhattan distance
 heuristica((X1, Y1), (X2, Y2), H) :-
     H is abs(X1 - X2) + abs(Y1 - Y2).
 
@@ -101,8 +100,26 @@ add_energy_position(X, Y) :-
     assert(energy_positions([(X,Y)|L])).       % adiciona na cabeça da lista
 add_energy_position(_, _).                     % se já está, não faz nada
 
-distancia_manhattan((X1,Y1), (X2,Y2), D) :-
-    D is abs(X1 - X2) + abs(Y1 - Y2).
+% Calcular energia mais próxima
+energia_mais_proxima(PosAtual, EnergiaMaisProxima) :-
+    energy_positions(L),
+    L \= [],
+    findall((D, Pos),
+        (member(Pos, L),
+        heuristica(PosAtual, Pos, D)),
+        Distancias),
+    sort(Distancias, [( _ , EnergiaMaisProxima) | _]).
+
+% Wrapper principal
+caminho_ate_energia(Caminho) :-
+    posicao(X, Y, _),
+    PosAtual = (X,Y),
+    energia_mais_proxima(PosAtual, Destino),
+    heuristica(PosAtual, Destino, H),
+    writeln(H),
+    a_estrela([(H, 0, PosAtual, [PosAtual])], Destino, CaminhoReverso),
+    writeln("Está faltando o QUE?"),
+    reverse(CaminhoReverso, Caminho).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -128,9 +145,7 @@ caminho_ate_inicio(Caminho) :-
     posicao(X, Y, _),
     PosAtual = (X,Y),
     heuristica(PosAtual, (1,1), H),
-    writeln("dsada"),
     a_estrela([(H, 0, PosAtual, [PosAtual])], (1,1), CaminhoReverso),   
-    writeln("dsada22"),
     reverse(CaminhoReverso, Caminho).
 
 
@@ -434,24 +449,36 @@ todos_ouros_coletados :-
     % lógica para verificar se todos os ouros foram coletados
     writeln("Todos os ouros foram coletados.").
 
+energia_baixa :-
+    writeln("Caminho para energia encontrado.").
+
 % Ações
 
-executa_acao(todos_ouros_coletados) :-
-    ourosColetados(Qtd),
-    Qtd =:= 3,
-    safe_positions(IL),
-    imprime_lista(IL),
-    writeln("Primeira lista"),
-    caminho_ate_inicio(C),
-    imprime_lista(C),
-    writeln("CAMINHO PRA VOLTA"),!.
+% executa_acao(energia_baixa) :-
+%     energia(E),
+%     E < 50,
+%     writeln("Energia baixa! Buscando energia mais próxima..."),
+%     caminho_ate_energia(Caminho),
+%     writeln("Demorando muito"),
+%     imprime_lista(Caminho),
+%     writeln("Caminho até energia mais próxima!"), !.
+
+% executa_acao(todos_ouros_coletados) :-
+%     ourosColetados(Qtd),
+%     Qtd =:= 3,
+%     safe_positions(IL),
+%     imprime_lista(IL),
+%     writeln("Primeira lista"),
+%     caminho_ate_inicio(C),
+%     imprime_lista(C),
+%     writeln("CAMINHO PRA VOLTA"),!.
 
 executa_acao(pegar) :- 
     posicao(X, Y, _),
     memory(X, Y, L),
     member(brilho, L),
     atualiza_ouros,!.
-
+    
 executa_acao(pegar) :- 
     posicao(X, Y, _),
     memory(X, Y, L),
