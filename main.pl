@@ -7,6 +7,7 @@
 :-dynamic pontuacao/1.
 :-dynamic ourosColetados/1.
 :-dynamic safe_positions/1.
+:-dynamic energy_positions/1.
 
 :-consult('mapa.pl').
 
@@ -17,7 +18,7 @@ delete([Elem|Tail], Del, Result) :-
     ;   Result = [Elem|Rest],
         delete(Tail, Del, Rest)
     ).
-	
+
 imprime_lista([]).
 imprime_lista([H|T]) :-
     writeln(H),
@@ -28,12 +29,14 @@ reset_game :- retractall(memory(_,_,_)),
 			retractall(certeza(_,_)),
 			retractall(energia(_)),
 			retractall(pontuacao(_)),
+            retractall(safe_positions(_)),
+            retractall(energy_positions(_)),
 			retractall(posicao(_,_,_)),
 			assert(energia(100)),
+            assert(ourosColetados(0)),
 			assert(pontuacao(0)),
 			assert(posicao(1,1, norte)),
-            assert(ourosColetados(0)),
-            retractall(safe_positions(_)),
+            assert(energy_positions([])),
             assert(safe_positions([(1,1)])).
 
 
@@ -65,11 +68,35 @@ vizinho((X,Y), (X,Y1)) :-
     Y1 is Y - 1.
 
 
+% BFS usando fila (lista) com elementos (Pos, CaminhoAcumulado)
+bfs([ (Pos, Caminho) | _], Pos, Caminho).
+bfs([ (PosAtual, CaminhoAc) | Resto], Objetivo, Caminho) :-
+    findall( (Prox, [Prox|CaminhoAc]),
+             ( vizinho(PosAtual, Prox),
+               is_safe_pos(Prox),
+               \+ member(Prox, CaminhoAc)
+             ),
+             Novos),
+    append(Resto, Novos, FilaAtualizada),
+    bfs(FilaAtualizada, Objetivo, Caminho).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Caminho até energia
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+add_energy_position(X, Y) :-
+    energy_positions(L),
+    \+ member((X,Y), L),                      % se ainda não está na lista
+    retract(energy_positions(L)),
+    assert(energy_positions([(X,Y)|L])).       % adiciona na cabeça da lista
+add_energy_position(_, _).                     % se já está, não faz nada
+
+distancia_manhattan((X1,Y1), (X2,Y2), D) :-
+    D is abs(X1 - X2) + abs(Y1 - Y2).
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Caminho inicial
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-
 
 %adiciona uma posicao como segura
 add_safe_position(X, Y) :-
@@ -91,17 +118,6 @@ caminho_ate_inicio(Caminho) :-
     bfs([ ((X,Y), [ (X,Y) ]) ], (1,1), CaminhoRev),
     reverse(CaminhoRev, Caminho).
 
-% BFS usando fila (lista) com elementos (Pos, CaminhoAcumulado)
-bfs([ (Pos, Caminho) | _], Pos, Caminho).
-bfs([ (PosAtual, CaminhoAc) | Resto], Objetivo, Caminho) :-
-    findall( (Prox, [Prox|CaminhoAc]),
-             ( vizinho(PosAtual, Prox),
-               is_safe_pos(Prox),
-               \+ member(Prox, CaminhoAc)
-             ),
-             Novos),
-    append(Resto, Novos, FilaAtualizada),
-    bfs(FilaAtualizada, Objetivo, Caminho).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Controle de Status
@@ -254,7 +270,7 @@ set_real2(X,Y):- tile(X,Y,'P'), ((retract(memory(X,Y,_)),assert(memory(X,Y,[bris
 set_real2(X,Y):- tile(X,Y,'O'), ((retract(memory(X,Y,_)),assert(memory(X,Y,[brilho])),!);assert(memory(X,Y,[brilho]))),!.
 set_real2(X,Y):- tile(X,Y,'T'), ((retract(memory(X,Y,_)),assert(memory(X,Y,[palmas])),!);assert(memory(X,Y,[palmas]))),!.
 set_real2(X,Y):- ((tile(X,Y,'D'),!); tile(X,Y,'d')), ((retract(memory(X,Y,_)),assert(memory(X,Y,[passos])),!);assert(memory(X,Y,[passos]))),!.
-set_real2(X,Y):- tile(X,Y,'U'), ((retract(memory(X,Y,_)),assert(memory(X,Y,[reflexo])),!);assert(memory(X,Y,[reflexo]))),!.
+set_real2(X,Y):- tile(X,Y,'U'), add_energy_position(X,Y), add_safe_position(X,Y), ((retract(memory(X,Y,_)),assert(memory(X,Y,[reflexo])),!);assert(memory(X,Y,[reflexo]))),!.
 set_real2(X,Y):- tile(X,Y,''), add_safe_position(X,Y), ((retract(memory(X,Y,_)),assert(memory(X,Y,[])),!);assert(memory(X,Y,[]))),!.
 
 
@@ -404,6 +420,7 @@ todos_ouros_coletados :-
     writeln("Todos os ouros foram coletados.").
 
 % Ações
+
 executa_acao(todos_ouros_coletados) :-
     ourosColetados(Qtd),
     Qtd =:= 3,
