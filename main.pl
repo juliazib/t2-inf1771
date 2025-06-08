@@ -68,17 +68,28 @@ vizinho((X,Y), (X,Y1)) :-
     Y1 is Y - 1.
 
 
-% BFS usando fila (lista) com elementos (Pos, CaminhoAcumulado)
-bfs([ (Pos, Caminho) | _], Pos, Caminho).
-bfs([ (PosAtual, CaminhoAc) | Resto], Objetivo, Caminho) :-
-    findall( (Prox, [Prox|CaminhoAc]),
-             ( vizinho(PosAtual, Prox),
-               is_safe_pos(Prox),
-               \+ member(Prox, CaminhoAc)
-             ),
-             Novos),
-    append(Resto, Novos, FilaAtualizada),
-    bfs(FilaAtualizada, Objetivo, Caminho).
+% Heurística: distância Manhattan
+heuristica((X1, Y1), (X2, Y2), H) :-
+    H is abs(X1 - X2) + abs(Y1 - Y2).
+
+% A* busca: Fila é lista de tuplas (F, G, Pos, Caminho)
+a_estrela([(F, G, Objetivo, Caminho) | _], Objetivo, Caminho) :- !.
+
+a_estrela([(F, G, PosAtual, CaminhoAc) | RestoFila], Objetivo, CaminhoFinal) :-
+    findall((F2, G2, Prox, [Prox | CaminhoAc]),
+        (
+            vizinho(PosAtual, Prox),
+            is_safe_pos(Prox),
+            \+ member(Prox, CaminhoAc),
+            G2 is G + 1,
+            heuristica(Prox, Objetivo, H2),
+            F2 is G2 + H2
+        ),
+        Novos),
+    append(RestoFila, Novos, FilaTemp),
+    sort(FilaTemp, FilaOrdenada),  % mantém prioridade
+    a_estrela(FilaOrdenada, Objetivo, CaminhoFinal).
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Caminho até energia
@@ -115,8 +126,12 @@ is_safe_pos((X,Y)) :- safe_positions(L), member((X,Y), L).
 % caminho_ate_inicio(-Caminho)
 caminho_ate_inicio(Caminho) :-
     posicao(X, Y, _),
-    bfs([ ((X,Y), [ (X,Y) ]) ], (1,1), CaminhoRev),
-    reverse(CaminhoRev, Caminho).
+    PosAtual = (X,Y),
+    heuristica(PosAtual, (1,1), H),
+    writeln("dsada"),
+    a_estrela([(H, 0, PosAtual, [PosAtual])], (1,1), CaminhoReverso),   
+    writeln("dsada22"),
+    reverse(CaminhoReverso, Caminho).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
