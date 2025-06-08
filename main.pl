@@ -242,84 +242,59 @@ show_mem(_,0) :- energia(E), pontuacao(P), write('E: '), write(E), write('   P: 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
 
-% Níveis de perigo por tipo de observação
-perigo(brisa, 3).
-perigo(palmas, 2).
-perigo(passos, 1).
+tem_inimigo(X, Y) :-
+    certeza((X, Y), inimigo).
 
-% Compara perigos para predsort
-compara_perigo(<, (_, _, P1), (_, _, P2)) :- P1 < P2.
-compara_perigo(=, (_, _, P1), (_, _, P2)) :- P1 =:= P2.
-compara_perigo(>, (_, _, P1), (_, _, P2)) :- P1 > P2.
-
-% Determina o maior perigo entre observações
-max_perigo([], 0).
-max_perigo([Obs|Resto], Max) :-
-    perigo(Obs, Nivel), !,
-    max_perigo(Resto, MaxResto),
-    Max is max(Nivel, MaxResto).
-max_perigo([_Outros|Resto], Max) :-
-    max_perigo(Resto, Max).
-
-% Define se uma posição é segura
 posicao_segura(X, Y) :-
-    (   memory(X, Y, Obs) ->
-        max_perigo(Obs, Danger),
-        Danger < 2
-    ;   true  % posição sem memória é considerada segura
-    ).
+    \+ tem_inimigo(X, Y),
+    (memory(X, Y, Obs) ->
+        \+ member(brisa, Obs),
+        \+ member(passos, Obs),
+        \+ member(palmas, Obs)
+    ; true).
 
-% Define se uma posição é conhecida e seu nível de perigo
-posicao_menos_perigosa(X, Y, Danger) :-
-    memory(X, Y, Obs),
-    max_perigo(Obs, Danger).
-
-% Lista todas posições adjacentes seguras
-movimentos_seguros(L) :-
+movimentos_seguros_nao_visitados(L) :-
     findall((X, Y),
         (adjacente(X, Y),
          \+ visitado(X, Y),
          posicao_segura(X, Y)),
     L).
 
-% Lista todas posições adjacentes possíveis com seus perigos
-movimentos_menos_perigosos(L) :-
-    findall((X, Y, Danger),
+movimentos_inseguros_nao_visitados(L) :-
+    findall((X, Y),
         (adjacente(X, Y),
          \+ visitado(X, Y),
-         posicao_menos_perigosa(X, Y, Danger)),
+         \+ member(brisa, Obs)),
     L).
 
-% Melhor movimento
-melhor_movimento((X, Y)) :-
-    movimentos_seguros(L),
-    L \= [],
-    L = [(X, Y)|_], !.
+movimentos_seguros_visitados(L) :-
+    findall((X, Y),
+        (adjacente(X, Y),
+         visitado(X, Y),
+         posicao_segura(X, Y)),
+    L).
 
-melhor_movimento((X, Y)) :-
-    movimentos_menos_perigosos(L),
-    L \= [],
-    predsort(compara_perigo, L, Sorted),
-    Sorted = [(X, Y, _)|_], !.
+melhor_movimento(Pos) :-
+    movimentos_seguros_nao_visitados(L1),
+    L1 \= [], !,
+    L1 = [Pos|_].
+
+melhor_movimento(Pos) :-
+    movimentos_inseguros_nao_visitados(L2),
+    L2 \= [], !,
+    L2 = [Pos|_].
+
+melhor_movimento(Pos) :-
+    movimentos_seguros_visitados(L3),
+    L3 \= [], !,
+    L3 = [Pos|_].
+
 
 % Direção desejada
 direcao_desejada((X, Y), (X2, Y), leste)  :- X2 is X + 1.
 direcao_desejada((X, Y), (X2, Y), oeste)  :- X2 is X - 1.
 direcao_desejada((X, Y), (X, Y2), norte)  :- Y2 is Y + 1.
 direcao_desejada((X, Y), (X, Y2), sul)    :- Y2 is Y - 1.
-
-% Códigos numéricos das direções
-direcao_num(norte, 0).
-direcao_num(leste, 1).
-direcao_num(sul, 2).
-direcao_num(oeste, 3).
-
-% Distância de rotação entre duas direções
-distancia_direcao(D1, D2, Dist) :-
-    direcao_num(D1, N1),
-    direcao_num(D2, N2),
-    Diff is abs(N1 - N2),
-    Dist is min(Diff, 4 - Diff).
 
 % Próxima direção ao girar
 proxima_direcao(norte, virar_direita, leste).
@@ -330,6 +305,19 @@ proxima_direcao(norte, virar_esquerda, oeste).
 proxima_direcao(oeste, virar_esquerda, sul).
 proxima_direcao(sul, virar_esquerda, leste).
 proxima_direcao(leste, virar_esquerda, norte).
+
+% Código numérico das direções
+direcao_num(norte, 0).
+direcao_num(leste, 1).
+direcao_num(sul, 2).
+direcao_num(oeste, 3).
+
+% Distância de rotação entre direções
+distancia_direcao(D1, D2, Dist) :-
+    direcao_num(D1, N1),
+    direcao_num(D2, N2),
+    Diff is abs(N1 - N2),
+    Dist is min(Diff, 4 - Diff).
 
 % Ações
 executa_acao(pegar) :- 
@@ -344,13 +332,12 @@ executa_acao(pegar) :-
     energia(E),
     E < 50, !.
 
-% Caminhar se já estiver virado corretamente
 executa_acao(andar) :-
     posicao(X, Y, Dir),
     melhor_movimento((NX, NY)),
     direcao_desejada((X, Y), (NX, NY), Dir), !.
 
-% Continuar virando para alinhar com direção desejada (melhor lógica)
+
 executa_acao(virar_direita) :-
     posicao(X, Y, Dir),
     melhor_movimento((NX, NY)),
@@ -370,7 +357,7 @@ executa_acao(virar_esquerda) :-
 
 % Último recurso: ação aleatória
 executa_acao(Acao) :-
-    Acoes = [virar_esquerda, virar_direita, andar, pegar],
+    Acoes = [virar_esquerda, virar_direita, andar],
     random_member(Acao, Acoes), !.
 
 
