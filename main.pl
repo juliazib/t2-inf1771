@@ -5,6 +5,7 @@
 :-dynamic certeza/2.
 :-dynamic energia/1.
 :-dynamic pontuacao/1.
+:-dynamic ourosColetados/1.
 
 :-consult('mapa.pl').
 
@@ -26,7 +27,9 @@ reset_game :- retractall(memory(_,_,_)),
 			retractall(posicao(_,_,_)),
 			assert(energia(100)),
 			assert(pontuacao(0)),
-			assert(posicao(1,1, norte)).
+			assert(posicao(1,1, norte)),
+            assert(ourosColetados(0)).
+
 
 
 :-reset_game.
@@ -37,6 +40,9 @@ reset_game :- retractall(memory(_,_,_)),
 
 %atualiza pontuacao
 atualiza_pontuacao(X):- pontuacao(P), retract(pontuacao(P)), NP is P + X, assert(pontuacao(NP)),!.
+
+%atualiza ouros_coletados
+atualiza_ouros:- ourosColetados(P), retract(ourosColetados(P)), NP is P + 1, assert(ourosColetados(NP)),!.
 
 %atualiza energia
 atualiza_energia(N):- energia(E), retract(energia(E)), NE is E + N, 
@@ -238,6 +244,9 @@ show_mem(X,Y) :- Y >= 1, map_size(MAX_X,_), X =< MAX_X, show_mem_position(X,Y), 
 show_mem(X,Y) :- Y >= 1, map_size(X,_),YY is Y - 1, write(Y), nl, show_mem(1, YY),!.
 show_mem(_,0) :- energia(E), pontuacao(P), write('E: '), write(E), write('   P: '), write(P),!.
 
+mostrar_ouros :-
+    ourosColetados(Qtd),
+    format("Ouros coletados: ~w~n", [Qtd]).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
@@ -323,7 +332,8 @@ distancia_direcao(D1, D2, Dist) :-
 executa_acao(pegar) :- 
     posicao(X, Y, _),
     memory(X, Y, L),
-    member(brilho, L), !.
+    member(brilho, L),
+    atualiza_ouros,!.
 
 executa_acao(pegar) :- 
     posicao(X, Y, _),
