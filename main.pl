@@ -10,7 +10,7 @@
 :-dynamic safe_positions/1.
 :-dynamic energy_positions/1.
 
-:-consult('mapa_dificil.pl').
+:-consult('mapa.pl').
 
 delete([], _, []).
 delete([Elem|Tail], Del, Result) :-
@@ -199,26 +199,26 @@ andar :- posicao(X,Y,P), P = norte, map_size(_,MAX_Y), Y < MAX_Y, YY is Y + 1,
 		 %((retract(certeza(X,YY)), assert(certeza(X,YY))); assert(certeza(X,YY))),
 		 set_real(X,YY),
 		 ((retract(visitado(X,Y)), assert(visitado(X,Y))); assert(visitado(X,Y))),atualiza_pontuacao(-1),
-         deduz_buracos,!.
+         deduz_perigos,!.
 		 
 andar :- posicao(X,Y,P), P = sul,  Y > 1, YY is Y - 1, 
          retract(posicao(X,Y,_)), assert(posicao(X, YY, P)), 
 		 %((retract(certeza(X,YY)), assert(certeza(X,YY))); assert(certeza(X,YY))),
 		 set_real(X,YY),
 		 ((retract(visitado(X,Y)), assert(visitado(X,Y))); assert(visitado(X,Y))),atualiza_pontuacao(-1),
-          deduz_buracos,!.
+          deduz_perigos,!.
 
 andar :- posicao(X,Y,P), P = leste, map_size(MAX_X,_), X < MAX_X, XX is X + 1, 
          retract(posicao(X,Y,_)), assert(posicao(XX, Y, P)), 
 		 %((retract(certeza(XX,Y)), assert(certeza(XX,Y))); assert(certeza(XX,Y))),
 		 set_real(XX,Y),
-		 ((retract(visitado(X,Y)), assert(visitado(X,Y))); assert(visitado(X,Y))),atualiza_pontuacao(-1),deduz_buracos,!.
+		 ((retract(visitado(X,Y)), assert(visitado(X,Y))); assert(visitado(X,Y))),atualiza_pontuacao(-1),deduz_perigos,!.
 
 andar :- posicao(X,Y,P), P = oeste,  X > 1, XX is X - 1, 
          retract(posicao(X,Y,_)), assert(posicao(XX, Y, P)), 
 		 %((retract(certeza(XX,Y)), assert(certeza(XX,Y))); assert(certeza(XX,Y))),
 		 set_real(XX,Y),
-		 ((retract(visitado(X,Y)), assert(visitado(X,Y))); assert(visitado(X,Y))),atualiza_pontuacao(-1),deduz_buracos,!.
+		 ((retract(visitado(X,Y)), assert(visitado(X,Y))); assert(visitado(X,Y))),atualiza_pontuacao(-1),deduz_perigos,!.
 		 
 %pegar	
 pegar :- posicao(X,Y,_), tile(X,Y,'O'), retract(tile(X,Y,'O')), assert(tile(X,Y,'')), atualiza_pontuacao(-5), atualiza_pontuacao(500),set_real(X,Y),!. 
@@ -386,14 +386,70 @@ sente_brisa(X,Y) :-
         L),
     L \= [].
 
-deduz_buracos :-
+tem_monstro(X, Y) :-
+    tile(X, Y, 'D'),
+    certeza(X, Y).
+
+encontra_posicoes_com_monstro(L) :-
+    setof((X, Y),
+        (adjacente(X, Y), tem_monstro(X, Y)),
+        L).
+encontra_posicoes_com_monstro([]).
+
+ouve_passos(X,Y) :-
+    findall((XA, YA),
+        (adjacente(XA, YA), memory(XA, YA, L), member(passos, L)),
+        L),
+    L \= [].
+
+tem_teleporte(X, Y) :-
+    tile(X, Y, 'T'),
+    certeza(X, Y).
+
+encontra_posicoes_com_teleporte(L) :-
+    setof((X, Y),
+        (adjacente(X, Y), tem_teleporte(X, Y)),
+        L).
+encontra_posicoes_com_teleporte([]).
+
+sente_palmas(X,Y) :-
+    findall((XA, YA),
+        (adjacente(XA, YA), memory(XA, YA, L), member(brilho, L)),
+        L),
+    L \= [].
+
+
+
+deduz_perigos :-
     posicao(X, Y, _),
     memory(X, Y, L),
-    sente_brisa(X, Y),
+    
+    (sente_brisa(X, Y) -> deduz_buracos(X, Y, L) ; (
+        deduz_monstro(X, Y, L),
+        deduz_teleporte(X, Y, L)
+    )).
+
+deduz_buracos(X, Y, L) :-
     encontra_posicoes_com_buraco(ComBuraco),
     length(ComBuraco, 1),
     findall((AX, AY),
         (adjacente(AX, AY), \+ member((AX, AY), ComBuraco)),
+        Seguras),
+    marcar_seguras(Seguras).
+
+deduz_monstro(X, Y, L) :-
+    encontra_posicoes_com_monstro(ComMonstro),
+    length(ComMonstro, 1),
+    findall((AX, AY),
+        (adjacente(AX, AY), \+ member((AX, AY), ComMonstro)),
+        Seguras),
+    marcar_seguras(Seguras).
+
+deduz_teleporte(X, Y, L) :-
+    encontra_posicoes_com_teleporte(ComTeleporte),
+    length(ComTeleporte, 1),
+    findall((AX, AY),
+        (adjacente(AX, AY), \+ member((AX, AY), ComTeleporte)),
         Seguras),
     marcar_seguras(Seguras).
 
@@ -446,10 +502,20 @@ melhor_movimento(Pos) :-
     L2 \= [], !,
     L2 = [Pos|_].
 
+
 melhor_movimento(Pos) :-
     movimentos_seguros_visitados(L3),
-    L3 \= [], !,
-    L3 = [Pos|_].
+    L3 \= [],
+    maplist(conta_visitas, L3, LComVisitas),
+    predsort(compara_visitas, LComVisitas, Ordenada),
+    Ordenada = [(X, Y, _)|_],
+    Pos = (X, Y).
+
+conta_visitas((X, Y), (X, Y, N)) :-
+    (findall(_, visitado(X, Y), V) -> length(V, N) ; N = 0).
+
+compara_visitas(Delta, (_, _, V1), (_, _, V2)) :-
+    compare(Delta, V1, V2).
 
 
 % Direção desejada
