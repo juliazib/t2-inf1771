@@ -7,7 +7,7 @@ import pathlib
 current_path = str(pathlib.Path().resolve())
 
 elapsed_time = 0
-auto_play_tempo = 0.9
+auto_play_tempo = 0.5
 auto_play = True # desligar para controlar manualmente
 show_map = False
 
