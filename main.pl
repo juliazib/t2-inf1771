@@ -10,7 +10,7 @@
 :-dynamic safe_positions/1.
 :-dynamic energy_positions/1.
 
-:-consult('mapa.pl').
+:-consult('mapa_medio.pl').
 
 delete([], _, []).
 delete([Elem|Tail], Del, Result) :-
@@ -414,7 +414,7 @@ encontra_posicoes_com_teleporte([]).
 
 sente_palmas(X,Y) :-
     findall((XA, YA),
-        (adjacente(XA, YA), memory(XA, YA, L), member(brilho, L)),
+        (adjacente(XA, YA), memory(XA, YA, L), member(palmas, L)),
         L),
     L \= [].
 
@@ -423,11 +423,21 @@ sente_palmas(X,Y) :-
 deduz_perigos :-
     posicao(X, Y, _),
     memory(X, Y, L),
-    
-    (sente_brisa(X, Y) -> deduz_buracos(X, Y, L) ; (
-        deduz_monstro(X, Y, L),
-        deduz_teleporte(X, Y, L)
-    )).
+
+    (sente_brisa(X, Y) ->
+        (format('Brisa detectada em (~w,~w)\n', [X, Y]),
+         deduz_buracos(X, Y, L))
+    ; true),
+
+    (ouve_passos(X, Y) ->
+        (format('Passos detectados em (~w,~w)\n', [X, Y]),
+         deduz_monstro(X, Y, L))
+    ; true),
+
+    (sente_palmas(X, Y) ->
+        (format('Palmas detectadas em (~w,~w)\n', [X, Y]),
+         deduz_teleporte(X, Y, L))
+    ; true).
 
 deduz_buracos(X, Y, L) :-
     encontra_posicoes_com_buraco(ComBuraco),
@@ -481,7 +491,8 @@ movimentos_inseguros_nao_visitados(L) :-
     findall((X, Y),
         (adjacente(X, Y),
          \+ visitado(X, Y),
-         \+ member(brisa, Obs)),
+         \+ member(brisa, Obs),
+         \+ posicao_segura(X, Y)),
     L).
 
 movimentos_seguros_visitados(L) :-
@@ -494,17 +505,20 @@ movimentos_seguros_visitados(L) :-
 
 melhor_movimento(Pos) :-
     movimentos_seguros_nao_visitados(L1),
+    writeln('Indo por movimento seguro nao visitado...'),
     L1 \= [], !,
     L1 = [Pos|_].
 
 melhor_movimento(Pos) :-
     movimentos_inseguros_nao_visitados(L2),
+    writeln('Indo por movimento inseguro nao visitado...'),
     L2 \= [], !,
     L2 = [Pos|_].
 
 
 melhor_movimento(Pos) :-
     movimentos_seguros_visitados(L3),
+    writeln('Indo por movimento seguro visitado...'),
     L3 \= [],
     maplist(conta_visitas, L3, LComVisitas),
     predsort(compara_visitas, LComVisitas, Ordenada),
