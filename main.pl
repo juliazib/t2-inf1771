@@ -50,6 +50,18 @@ reset_game :- retractall(memory(_,_,_)),
 %% Utils
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+% Inserir elemento na lista ordenada por F (primeiro elemento da tupla)
+insert_sorted(X, [], [X]).
+insert_sorted((F, G, Pos, Caminho), [(F2, G2, Pos2, Caminho2) | T], [(F, G, Pos, Caminho), (F2, G2, Pos2, Caminho2) | T]) :-
+    F =< F2, !.
+insert_sorted(X, [H | T], [H | R]) :-
+    insert_sorted(X, T, R).
+
+inserir_todos([], Fila, Fila).
+inserir_todos([X | XS], Fila, FilaFinal) :-
+    insert_sorted(X, Fila, FilaTemp),
+    inserir_todos(XS, FilaTemp, FilaFinal).
+
 vizinho((X,Y), (X1,Y)) :-
     map_size(MAX_X, _),
     X < MAX_X,
@@ -86,9 +98,9 @@ a_estrela([(F, G, PosAtual, CaminhoAc) | RestoFila], Objetivo, CaminhoFinal) :-
             F2 is G2 + H2
         ),
         Novos),
-    append(RestoFila, Novos, FilaTemp),
-    sort(FilaTemp, FilaOrdenada),  % mantém prioridade
+    inserir_todos(Novos, RestoFila, FilaOrdenada),
     a_estrela(FilaOrdenada, Objetivo, CaminhoFinal).
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -112,15 +124,15 @@ energia_mais_proxima(PosAtual, EnergiaMaisProxima) :-
     sort(Distancias, [( _ , EnergiaMaisProxima) | _]).
 
 % Wrapper principal
-caminho_ate_energia(Caminho) :-
+caminho_ate_energia(CaminhoSemAtual) :-
     posicao(X, Y, _),
     PosAtual = (X,Y),
     energia_mais_proxima(PosAtual, Destino),
     heuristica(PosAtual, Destino, H),
-    writeln(H),
     a_estrela([(H, 0, PosAtual, [PosAtual])], Destino, CaminhoReverso),
-    writeln("Está faltando o QUE?"),
-    reverse(CaminhoReverso, Caminho).
+    reverse(CaminhoReverso, CaminhoCompleto),
+    CaminhoCompleto = [_PosAtual | CaminhoSemAtual].
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -142,12 +154,14 @@ is_safe(X,Y) :- safe_positions(L), member((X,Y), L).
 is_safe_pos((X,Y)) :- safe_positions(L), member((X,Y), L).
 
 % caminho_ate_inicio(-Caminho)
-caminho_ate_inicio(Caminho) :-
+caminho_ate_inicio(CaminhoSemAtual) :-
     posicao(X, Y, _),
     PosAtual = (X,Y),
     heuristica(PosAtual, (1,1), H),
     a_estrela([(H, 0, PosAtual, [PosAtual])], (1,1), CaminhoReverso),   
-    reverse(CaminhoReverso, Caminho).
+    reverse(CaminhoReverso, CaminhoCompleto),
+    CaminhoCompleto = [_PosAtual | CaminhoSemAtual].
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -222,7 +236,7 @@ andar :- posicao(X,Y,P), P = oeste,  X > 1, XX is X - 1,
 		 
 %pegar	
 pegar :- posicao(X,Y,_), tile(X,Y,'O'), retract(tile(X,Y,'O')), assert(tile(X,Y,'')), atualiza_pontuacao(-5), atualiza_pontuacao(500),set_real(X,Y),!. 
-pegar :- posicao(X,Y,_), tile(X,Y,'U'), retract(tile(X,Y,'U')), assert(tile(X,Y,'')), atualiza_pontuacao(-5), atualiza_energia(50),set_real(X,Y),!. 
+pegar :- posicao(X,Y,_), tile(X,Y,'U'), energy_positions(Lista), delete(Lista, (X, Y), NovaLista), retract(energy_positions(Lista)), assert(energy_positions(NovaLista)),retract(tile(X,Y,'U')), assert(tile(X,Y,'')), atualiza_pontuacao(-5), atualiza_energia(50),set_real(X,Y),!. 
 pegar :- atualiza_pontuacao(-5),!.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -566,28 +580,50 @@ todos_ouros_coletados :-
     writeln("Todos os ouros foram coletados.").
 
 energia_baixa :-
-    writeln("Caminho para energia encontrado.").
+    pegar.
 
 % Ações
 
-% executa_acao(energia_baixa) :-
-%     energia(E),
-%     E < 50,
-%     writeln("Energia baixa! Buscando energia mais próxima..."),
-%     caminho_ate_energia(Caminho),
-%     writeln("Demorando muito"),
-%     imprime_lista(Caminho),
-%     writeln("Caminho até energia mais próxima!"), !.
 
-% executa_acao(todos_ouros_coletados) :-
-%     ourosColetados(Qtd),
-%     Qtd =:= 3,
-%     safe_positions(IL),
-%     imprime_lista(IL),
-%     writeln("Primeira lista"),
-%     caminho_ate_inicio(C),
-%     imprime_lista(C),
-%     writeln("CAMINHO PRA VOLTA"),!.
+% Ação principal para coletar todos os ouros
+% Ajusta a direção atual para apontar para a direção correta do próximo passo
+ajusta_direcao(Destino) :-
+    posicao(X, Y, DirecaoAtual),
+    direcao_desejada((X, Y), Destino, DirecaoDesejada),
+    (
+        DirecaoAtual == DirecaoDesejada -> true
+    ;
+        proxima_direcao(DirecaoAtual, virar_direita, NovaDirecao),
+        retract(posicao(X,Y,_)),
+        assert(posicao(X,Y,NovaDirecao)),
+        ajusta_direcao(Destino)
+    ).
+
+% Executa o caminho até o início
+executa_caminho([]).
+executa_caminho([Pos|Resto]) :-
+    ajusta_direcao(Pos),
+    andar,
+    executa_caminho(Resto).
+
+% Ação: retornar ao ponto de entrada após coletar os ouros
+executa_acao(energia_baixa) :-
+    energia(E),
+    E < 50,
+    caminho_ate_energia(Caminho),
+    % imprime_lista(Caminho),
+    executa_caminho(Caminho),
+    writeln("Caminho até energia mais próxima!"), !
+    .
+executa_acao(todos_ouros_coletados) :-
+    ourosColetados(Qtd),
+    Qtd =:= 3,
+    caminho_ate_inicio(Caminho),
+    writeln("Retornando ao início..."),
+    % imprime_lista(Caminho),
+    executa_caminho(Caminho),
+    writeln("Agente retornou ao ponto inicial com os ouros!").
+
 
 executa_acao(pegar) :- 
     posicao(X, Y, _),
