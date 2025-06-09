@@ -124,14 +124,15 @@ energia_mais_proxima(PosAtual, EnergiaMaisProxima) :-
     sort(Distancias, [( _ , EnergiaMaisProxima) | _]).
 
 % Wrapper principal
-caminho_ate_energia(Caminho) :-
+caminho_ate_energia(CaminhoSemAtual) :-
     posicao(X, Y, _),
     PosAtual = (X,Y),
     energia_mais_proxima(PosAtual, Destino),
     heuristica(PosAtual, Destino, H),
-    writeln(H),
     a_estrela([(H, 0, PosAtual, [PosAtual])], Destino, CaminhoReverso),
-    reverse(CaminhoReverso, Caminho).
+    reverse(CaminhoReverso, CaminhoCompleto),
+    CaminhoCompleto = [_PosAtual | CaminhoSemAtual].
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -565,7 +566,8 @@ todos_ouros_coletados :-
     writeln("Todos os ouros foram coletados.").
 
 energia_baixa :-
-    writeln("Caminho para energia encontrado.").
+    writeln("Pegou energia."),
+    pegar.
 
 % Ações
 
@@ -592,25 +594,24 @@ executa_caminho([Pos|Resto]) :-
     executa_caminho(Resto).
 
 % Ação: retornar ao ponto de entrada após coletar os ouros
+executa_acao(energia_baixa) :-
+    energia(E),
+    E < 50,
+    caminho_ate_energia(Caminho),
+    writeln("Demorando muito"),
+    imprime_lista(Caminho),
+    executa_caminho(Caminho),
+    writeln("Caminho até energia mais próxima!"), !
+    .
 executa_acao(todos_ouros_coletados) :-
     ourosColetados(Qtd),
     Qtd =:= 3,
-    writeln("dsadka"),
     caminho_ate_inicio(Caminho),
     writeln("Retornando ao início..."),
     imprime_lista(Caminho),
     executa_caminho(Caminho),
     writeln("Agente retornou ao ponto inicial com os ouros!").
 
-
-% executa_acao(energia_baixa) :-
-%     energia(E),
-%     E < 50,
-%     writeln("Energia baixa! Buscando energia mais próxima..."),
-%     caminho_ate_energia(Caminho),
-%     writeln("Demorando muito"),
-%     imprime_lista(Caminho),
-%     writeln("Caminho até energia mais próxima!"), !.
 
 executa_acao(pegar) :- 
     posicao(X, Y, _),
