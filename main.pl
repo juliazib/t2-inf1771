@@ -10,7 +10,7 @@
 :-dynamic safe_positions/1.
 :-dynamic energy_positions/1.
 
-:-consult('mapa_facil.pl').
+:-consult('mapa_medio.pl').
 
 delete([], _, []).
 delete([Elem|Tail], Del, Result) :-
@@ -236,7 +236,7 @@ andar :- posicao(X,Y,P), P = oeste,  X > 1, XX is X - 1,
 		 
 %pegar	
 pegar :- posicao(X,Y,_), tile(X,Y,'O'), retract(tile(X,Y,'O')), assert(tile(X,Y,'')), atualiza_pontuacao(-5), atualiza_pontuacao(500),set_real(X,Y),!. 
-pegar :- posicao(X,Y,_), tile(X,Y,'U'), retract(tile(X,Y,'U')), assert(tile(X,Y,'')), atualiza_pontuacao(-5), atualiza_energia(50),set_real(X,Y),!. 
+pegar :- posicao(X,Y,_), tile(X,Y,'U'), energy_positions(Lista), delete(Lista, (X, Y), NovaLista), retract(energy_positions(Lista)), assert(energy_positions(NovaLista)),retract(tile(X,Y,'U')), assert(tile(X,Y,'')), atualiza_pontuacao(-5), atualiza_energia(50),set_real(X,Y),!. 
 pegar :- atualiza_pontuacao(-5),!.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -566,7 +566,6 @@ todos_ouros_coletados :-
     writeln("Todos os ouros foram coletados.").
 
 energia_baixa :-
-    writeln("Pegou energia."),
     pegar.
 
 % Ações
@@ -598,8 +597,7 @@ executa_acao(energia_baixa) :-
     energia(E),
     E < 50,
     caminho_ate_energia(Caminho),
-    writeln("Demorando muito"),
-    imprime_lista(Caminho),
+    % imprime_lista(Caminho),
     executa_caminho(Caminho),
     writeln("Caminho até energia mais próxima!"), !
     .
@@ -608,7 +606,7 @@ executa_acao(todos_ouros_coletados) :-
     Qtd =:= 3,
     caminho_ate_inicio(Caminho),
     writeln("Retornando ao início..."),
-    imprime_lista(Caminho),
+    % imprime_lista(Caminho),
     executa_caminho(Caminho),
     writeln("Agente retornou ao ponto inicial com os ouros!").
 
